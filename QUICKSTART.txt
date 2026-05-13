@@ -1,0 +1,157 @@
+SM4 国密加密解密工具 - 快速开始指南
+====================================
+
+重要提示：需要安装 gmssl 库
+----------------------------
+
+gmssl 是中国商用密码算法官方实现库，严格遵循 GB/T 32907-2016 等国家标准。
+强烈建议使用 gmssl 库以确保算法的正确性和安全性。
+
+安装 gmssl：
+------------
+
+在命令行中运行：
+
+    pip install gmssl
+
+如果遇到权限问题，尝试：
+
+    pip install --user gmssl
+
+或者使用管理员权限运行命令提示符：
+
+    pip install gmssl
+
+安装完成后，运行测试：
+
+    python test_gmssl.py
+
+如果测试通过，即可使用完整的 SM4 功能。
+
+项目文件说明
+------------
+
+核心文件：
+- sm4_core.py          : Native SM4 实现（可作为参考）
+- sm4_modes.py         : 工作模式实现
+- sm4_utils.py         : 工具函数
+- sm4_api.py           : 高层 API（需要 gmssl）
+- sm4_gmssl.py         : gmssl 库封装
+
+图形界面：
+- sm4_tool_windows.py  : Windows 图形界面（tkinter）
+- sm4_tool_android.py  : Android 图形界面（Kivy）
+
+构建脚本：
+- build_windows.bat     : Windows 打包脚本
+- build_android.sh     : Android 打包脚本
+- buildozer.spec       : Android 构建配置
+
+测试文件：
+- test_sm4.py          : 测试程序
+- test_simple.py       : 简单测试
+- test_vector.py       : 测试向量测试
+- test_gmssl.py        : gmssl 测试
+
+依赖要求
+--------
+
+Windows:
+- Python 3.8+
+- tkinter（通常随 Python 一起安装）
+- gmssl（国密官方库）
+
+Android:
+- Python 3.8+
+- Kivy
+- buildozer
+- Android SDK/NDK
+
+快速使用
+--------
+
+1. 文本加密：
+
+    from sm4_api import sm4_encrypt, sm4_decrypt
+    from sm4_utils import generate_random_key, bytes_to_hex
+
+    key = generate_random_key()
+    plaintext = "Hello, SM4!"
+
+    ciphertext = sm4_encrypt(key, plaintext, mode='ECB')
+    print(f"密文 (Hex): {bytes_to_hex(ciphertext)}")
+
+2. 文本解密：
+
+    decrypted = sm4_decrypt(key, ciphertext, mode='ECB')
+    print(f"原文: {decrypted.decode('utf-8')}")
+
+3. 文件加密：
+
+    from sm4_api import sm4_encrypt_file
+
+    sm4_encrypt_file(key, 'input.txt', 'output.enc', mode='CBC', iv=iv)
+
+4. 运行图形界面：
+
+    python sm4_tool_windows.py
+
+支持的模式
+---------
+
+- ECB : 电子密码本模式（简单，不推荐用于加密长消息）
+- CBC : 密码块链接模式（推荐，用于大多数场景）
+- CFB : 密码反馈模式
+- OFB : 输出反馈模式
+
+功能特性
+--------
+
+1. 文本加密/解密
+2. 文件加密/解密
+3. 大文件支持
+4. 四种工作模式
+5. 随机密钥/IV 生成
+6. Hex/Base64 输出
+7. 图形化界面
+8. 离线运行
+
+安全建议
+--------
+
+1. 使用 CBC 模式而非 ECB
+2. 使用随机生成的 IV
+3. 妥善保管密钥
+4. 定期更换密钥
+5. 验证加密结果
+
+故障排除
+--------
+
+Q: ImportError: No module named 'gmssl'
+A: 运行 pip install gmssl
+
+Q: pip 安装失败
+A: 使用管理员权限或 --user 选项
+
+Q: 加密/解密失败
+A: 1. 确保密钥长度为 16 字节
+   2. CBC/OFB/CFB 模式需要 IV
+   3. 加密和解密必须使用相同的密钥和模式
+
+Q: tkinter 报错
+A: 确保安装了 Python 和 tkinter
+   Ubuntu/Debian: sudo apt-get install python3-tk
+   Fedora/RHEL:   sudo dnf install python3-tkinter
+
+更多信息
+--------
+
+GB/T 32907-2016 标准文档
+GMSSL 官方库: https://github.com/guanzhi/GmSSL
+Python GmSSL: pip install gmssl
+
+许可证
+------
+
+本项目仅供学习和研究使用。

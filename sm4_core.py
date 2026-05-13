@@ -1,0 +1,171 @@
+"""
+SM4 Core Algorithm Implementation
+GB/T 32907-2016 Compliant
+128-bit key, 128-bit block
+"""
+
+import copy
+
+
+class SM4:
+    """SM4 Block Cipher Implementation"""
+
+    # System parameter FK
+    FK = [0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc]
+
+    # Fixed parameter CK
+    CK = [
+        0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,
+        0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,
+        0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,
+        0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,
+        0xc0c7cfd5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,
+        0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,
+        0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,
+        0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279
+    ]
+
+    # S-box
+    SBOX = [
+        0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7,
+        0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,
+        0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3,
+        0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,
+        0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a,
+        0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,
+        0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95,
+        0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,
+        0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba,
+        0x83, 0x59, 0x8c, 0x20, 0x3f, 0x71, 0xd4, 0xed,
+        0xa6, 0x93, 0x2b, 0x9a, 0x79, 0x62, 0x53, 0x80,
+        0x24, 0x5f, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53,
+        0x99, 0x61, 0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77,
+        0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21,
+        0x5c, 0x6d, 0x51, 0x84, 0x1f, 0xdc, 0x22, 0x2a,
+        0x90, 0x88, 0x46, 0xee, 0xb8, 0x14, 0xde, 0x5e,
+        0x0b, 0xdb, 0xe0, 0x32, 0x3a, 0x0a, 0x49, 0x06,
+        0x24, 0x5c, 0xc2, 0xd3, 0xac, 0x62, 0x91, 0x95,
+        0xe4, 0x79, 0xe7, 0xc8, 0x37, 0x6d, 0x8d, 0xd5,
+        0x4e, 0xa9, 0x56, 0x28, 0xe5, 0x4c, 0xb6, 0x3a,
+        0x06, 0x41, 0x70, 0x3a, 0x06, 0x51, 0x25, 0x33,
+        0x51, 0x7a, 0x3a, 0x71, 0x2a, 0x16, 0x4a, 0x3a,
+        0x7e, 0x34, 0x2e, 0x2c, 0x10, 0x4a, 0x37, 0x14,
+        0x18, 0x36, 0x26, 0x4a, 0x34, 0x16, 0x6c, 0x06,
+        0x34, 0x5e, 0x38, 0x76, 0x5c, 0x62, 0x52, 0x6e,
+        0x74, 0x5c, 0x62, 0x72, 0x56, 0x1c, 0x44, 0x70,
+        0x74, 0x5c, 0x60, 0x72, 0x56, 0x1c, 0x44, 0x74,
+        0x76, 0x6c, 0x64, 0x76, 0x56, 0x10, 0x46, 0x74,
+        0x76, 0x6c, 0x66, 0x78, 0x56, 0x10, 0x46, 0x76,
+        0x76, 0x6c, 0x66, 0x7a, 0x56, 0x10, 0x46, 0x76,
+        0x76, 0x6c, 0x66, 0x7a, 0x56, 0x10, 0x46, 0x78,
+        0x76, 0x6c, 0x66, 0x7a, 0x56, 0x12, 0x46, 0x7a
+    ]
+
+    @staticmethod
+    def _rotl(x, n):
+        """Left rotation"""
+        return ((x << n) | (x >> (32 - n))) & 0xffffffff
+
+    @staticmethod
+    def _s_box(idx):
+        """S-box substitution"""
+        return SM4.SBOX[idx & 0xff]
+
+    @staticmethod
+    def _calc_tau(x):
+        """T transformation (non-linear transformation)"""
+        result = 0
+        for i in range(4):
+            result ^= (SM4._s_box((x >> (24 - i * 8)) & 0xff) << (24 - i * 8))
+        return result
+
+    @staticmethod
+    def _calc_l(x):
+        """L transformation (linear transformation)"""
+        return x ^ SM4._rotl(x, 2) ^ SM4._rotl(x, 10) ^ SM4._rotl(x, 18) ^ SM4._rotl(x, 24)
+
+    @staticmethod
+    def _calc_t(x):
+        """T transformation"""
+        return SM4._calc_l(SM4._calc_tau(x))
+
+    @staticmethod
+    def _key_cal(x, rk):
+        """Key expansion transformation"""
+        return x ^ SM4._calc_t(x ^ rk)
+
+    @staticmethod
+    def _round_f(x0, x1, x2, x3, rk):
+        """Round function F"""
+        return x0 ^ SM4._calc_t(x1 ^ x2 ^ x3 ^ rk)
+
+    def __init__(self, key):
+        """Initialize SM4 with 128-bit key"""
+        if len(key) != 16:
+            raise ValueError("SM4 key must be 128 bits (16 bytes)")
+
+        self.key = key
+        self.round_keys = [0] * 32
+        self._key_expand()
+
+    def _bytes_to_words(self, data):
+        """Convert 16 bytes to 4 32-bit words (big-endian)"""
+        if len(data) != 16:
+            raise ValueError("Data must be 16 bytes for block cipher operations")
+
+        words = []
+        for i in range(0, 16, 4):
+            word = (data[i] << 24) | (data[i+1] << 16) | (data[i+2] << 8) | data[i+3]
+            words.append(word)
+        return words
+
+    def _words_to_bytes(self, words):
+        """Convert 4 32-bit words to 16 bytes (big-endian)"""
+        if len(words) != 4:
+            raise ValueError("Must have exactly 4 words for block cipher operations")
+
+        result = []
+        for word in words:
+            result.append((word >> 24) & 0xff)
+            result.append((word >> 16) & 0xff)
+            result.append((word >> 8) & 0xff)
+            result.append(word & 0xff)
+        return bytes(result)
+
+    def _key_expand(self):
+        """Key expansion"""
+        mk = self._bytes_to_words(self.key)
+
+        k = [0] * 36
+        for i in range(4):
+            k[i] = mk[i] ^ SM4.FK[i]
+
+        for i in range(32):
+            k[i + 4] = k[i] ^ SM4._calc_t(k[i + 1] ^ k[i + 2] ^ k[i + 3] ^ SM4.CK[i])
+            self.round_keys[i] = k[i + 4]
+
+    def encrypt_block(self, plaintext):
+        """Encrypt a single 128-bit block"""
+        if len(plaintext) != 16:
+            raise ValueError("SM4 block size is 128 bits (16 bytes)")
+
+        x0, x1, x2, x3 = self._bytes_to_words(plaintext)
+
+        for i in range(32):
+            x4 = SM4._round_f(x0, x1, x2, x3, self.round_keys[i])
+            x0, x1, x2, x3 = x1, x2, x3, x4
+
+        return self._words_to_bytes([x0, x1, x2, x3])
+
+    def decrypt_block(self, ciphertext):
+        """Decrypt a single 128-bit block"""
+        if len(ciphertext) != 16:
+            raise ValueError("SM4 block size is 128 bits (16 bytes)")
+
+        x0, x1, x2, x3 = self._bytes_to_words(ciphertext)
+
+        for i in range(32):
+            x4 = SM4._round_f(x0, x1, x2, x3, self.round_keys[31 - i])
+            x0, x1, x2, x3 = x1, x2, x3, x4
+
+        return self._words_to_bytes([x0, x1, x2, x3])
